@@ -8,8 +8,8 @@ import resources as resources
 import settings as settings
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import parse_obj_as
-from sqlalchemy.orm import Session as SQLSession
-
+from sqlalchemy.orm import Session as SQLSession, load_only, noload
+from sqlalchemy import exists
 router = APIRouter()
 
 
@@ -25,7 +25,10 @@ def get_author(
 
 @router.get("/books/{book_id}", response_model=response.Book)
 def get_book(book_id: int, session: SQLSession = Depends(resources.database_session)):
-    book = session.query(sql.Book).filter(sql.Book.id == book_id).first()
+    book = session.query(sql.Book).options(
+        noload(sql.Book.authors),
+        noload(sql.Book.reviews)
+    ).get(book_id)
     if book is None:
         raise HTTPException(status_code=404, detail="Book not found")
     return response.Book.model_validate(book)
@@ -34,11 +37,13 @@ def get_book(book_id: int, session: SQLSession = Depends(resources.database_sess
 @router.get("/books/available/", response_model=List[response.Book])
 def get_available_books(session: SQLSession = Depends(resources.database_session)):
     # Query to get books that do not have any loans
-    subquery = session.query(sql.Loan.book_id).subquery()
     available_books = (
-        session.query(sql.Book)
-        .outerjoin(subquery, sql.Book.id == subquery.c.book_id)
-        .filter(subquery.c.book_id == None)
+        session.query(sql.Book).options(
+            load_only(sql.Book.id, sql.Book.title, sql.Book.published_date),
+            noload(sql.Book.authors),  # Prevent loading authors relationship
+            noload(sql.Book.reviews)   # Prevent loading reviews relationship
+        )
+        .filter(~exists().where(sql.Loan.book_id == sql.Book.id))
         .limit(10)
         .all()
     )
@@ -112,9 +117,9 @@ def create_review(
 def get_borrower(
     borrower_id: int, session: SQLSession = Depends(resources.database_session)
 ):
-    borrower = (
-        session.query(sql.Borrower).filter(sql.Borrower.id == borrower_id).first()
-    )
+    borrower = session.query(sql.Borrower).options(
+        noload(sql.Borrower.reviews)
+    ).get(borrower_id)
     if borrower is None:
         raise HTTPException(status_code=404, detail="Borrower not found")
     return response.Borrower.model_validate(borrower)
@@ -124,11 +129,7 @@ def get_borrower(
 def get_library_card(
     library_card_id: int, session: SQLSession = Depends(resources.database_session)
 ):
-    library_card = (
-        session.query(sql.LibraryCard)
-        .filter(sql.LibraryCard.id == library_card_id)
-        .first()
-    )
+    library_card = session.get(sql.LibraryCard, library_card_id)
     if library_card is None:
         raise HTTPException(status_code=404, detail="Library Card not found")
     return response.LibraryCard.model_validate(library_card)

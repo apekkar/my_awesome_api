@@ -44,11 +44,11 @@ class Book(Base):
     )
 
     authors = relationship(
-        "Author", secondary=book_author_table, back_populates="books"
+        "Author", secondary=book_author_table, back_populates="books", lazy='select'
     )
 
     # One-to-Many relationship with Review
-    reviews = relationship("Review", back_populates="book")
+    reviews = relationship("Review", back_populates="book", lazy='select')
 
     def __repr__(self):
         return f"<Book(id={self.id}, title='{self.title}')>"
@@ -111,13 +111,13 @@ class Loan(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     book_id = Column(
-        Integer, ForeignKey("books.id"), unique=True, nullable=False
+        Integer, ForeignKey("books.id"), unique=True, nullable=False, index=True
     )  # Ensures one active loan per book
     library_card_id = Column(Integer, ForeignKey("library_cards.id"), nullable=False)
     loan_date = Column(Date)
 
-    book = relationship("Book", back_populates="loan")
-    library_card = relationship("LibraryCard", back_populates="loans")
+    book = relationship("Book", back_populates="loan", lazy='select')
+    library_card = relationship("LibraryCard", back_populates="loans", lazy='select')
 
     def __repr__(self):
         return f"<Loan(id={self.id}, book_id={self.book_id}, library_card_id={self.library_card_id}, loan_date={self.loan_date})>"

@@ -49,7 +49,14 @@ module "api_gateway" {
         type = "AWS_PROXY"
         uri  = module.lambda_function.lambda_function_arn
       }
+      throttling_burst_limit = 5000
+      throttling_rate_limit  = 10000
     }
+  }
+
+  stage_default_route_settings = {
+    throttling_burst_limit     = 5000
+    throttling_rate_limit      = 10000
   }
 
   vpc_links = {
