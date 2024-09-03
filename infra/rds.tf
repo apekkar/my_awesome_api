@@ -19,12 +19,38 @@ resource "aws_rds_cluster" "postgresql" {
   ]
   db_subnet_group_name      = aws_db_subnet_group.default.name  # Use the new subnet group
 
+  enabled_cloudwatch_logs_exports = ["postgresql"] # Export PostgreSQL logs
+
   depends_on                = [
     null_resource.load_env,
     aws_default_vpc.default,
     aws_secretsmanager_secret_version.db_credentials
   ]
 }
+
+resource "aws_iam_role" "rds_monitoring_role" {
+  name = "rds-monitoring-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "monitoring.rds.amazonaws.com"
+        },
+        Sid = ""
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "rds_monitoring_policy_attachment" {
+  role       = aws_iam_role.rds_monitoring_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+
 
 resource "aws_rds_cluster_instance" "default-instance" {
   count                = 2
@@ -35,10 +61,21 @@ resource "aws_rds_cluster_instance" "default-instance" {
   engine_version       = aws_rds_cluster.postgresql.engine_version
   publicly_accessible  = true
 
+   # Enable Performance Insights
+  performance_insights_enabled = true
+
+  # Optional: Set the retention period (default is 7 days, up to 731 days)
+  performance_insights_retention_period = 7
+
+   # Enable enhanced monitoring
+  monitoring_interval  = 10
+  monitoring_role_arn  = aws_iam_role.rds_monitoring_role.arn
+
   lifecycle {
     create_before_destroy = true
   }
 }
+
 
 resource "aws_iam_role" "rds_proxy_role" {
   name = "RDSProxyRole"

@@ -27,9 +27,11 @@ else:
 # Establish database connection outside lambda handler.
 # After initialization this singleton database instance
 # will be reused as fastapi dependency
+print("Establishing database connection outside handler...")
 my_awesome_database = resources.get_database(
     use_proxy=settings.USE_PROXY, use_secret_cache=aws_secret_cache
 )
+print(f"Connection established: {my_awesome_database.engine.name}")
 
 handler = Mangum(app, lifespan="off")
 
